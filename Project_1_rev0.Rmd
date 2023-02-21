@@ -1,0 +1,254 @@
+---
+title: "DS6306_Project_1"
+author: "Todd Garner"
+date: "2023-02-17"
+output: powerpoint_presentation
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(dev = c('pdf', 'png'), 
+        fig.align = 'center', fig.height = 5, fig.width = 8.5, 
+        pdf.options(encoding = "ISOLatin9.enc")) 
+
+library(class)
+library(caret)
+library(e1071)
+library(dplyr)
+library(jsonlite)
+library(ggplot2)
+library(ggthemes)
+library(tidyverse)
+library(gridExtra)
+```
+
+# Project 1 - DS6306 Week 8 & 9
+
+***Question 1 - 1.	How many breweries are present in each state?***
+
+```{r}
+#load the breweries data set.  Breweries.csv
+Brew <- read.csv(file.choose(), header = TRUE)
+head(Brew)
+#isolate this chunk so I don't continually end up having to reload the same data set.  
+```
+
+There are 558 individual rows in the Brewery data set.  I will first filter the data set by state to obtain the number of breweries in each state.  But, first, I'll take a look at the full data set to observe any anomalies.  Looking through the data set, there don't appear to be any NAs or empty values.  
+```{r}
+Brew_state <- Brew %>% count(State, sort = TRUE)
+(Brew_state)
+
+p <-table(Brew_state$State, Brew_state$n)
+barplot(Brew_state$n, xlab = "States", ylab = "Frequency", main = "Number of Breweries by State", names.arg = Brew_state$State, col = "skyblue") 
+Brew_state
+Brew_state$State
+```
+
+***Question 2 - Merge beer data with the breweries data. Print the first 6 observations and the last six observations to check the merged file.  (RMD only, this does not need to be included in the presentation or the deck.)***
+
+I will first need to load the Breweries data set into RStudio. There are 2,410 rows in this data set.  From the top of the data set, there are apparent NA's.  Something to remember along the way.  
+
+```{r}
+Beer <- read.csv(file.choose(), header = TRUE)
+head(Beer)
+Beer
+```
+
+The "key" in both data sets is the Brewery_ID.  They have different column names so one will have to be changed to match the other.  
+
+```{r}
+names(Brew)[names(Brew)=="Brew_ID"] <- "Brewery_id"
+head(Brew)
+
+Beer_Brew <- merge(Beer, Brew, by = "Brewery_id")
+dim(Beer_Brew)
+head(Beer_Brew)
+```
+
+***Question - 3 Address the missing values in each column.***
+
+Let's count the NA's for the data set.  From the evaluation function below, we can see that there are 62 missing data points for ABV (alcohol by volume) and 1005 IBU values missing.  I searched for other data sets with more complete data for beers but was unsuccessful.  I did find the same data set, but that's no help.  62 out of 2,410 beers for ABV isn't too bad, and there's a possibility of averaging nearby data together.  Missing IBU is a problem as there are approximately half of the data set we'd have to throw out.  Not a good idea.  It does not appear that from the given data we can estimate IBU so we'll have to make do with what we have. 
+
+Doing some searching and reading from the Craft Beer nerds (meant in an endearing way), the common thought is paraphrased as , "It doesn't really matter what the IBU is as it's not a marketing statistic.  Consumer's couldn't care less about the IBU.  It's used a lot by brewers to compare to other beers.  As Chris McClellan wrote on www.craftbeer.com in an article titled, "Last call for IBU's: Fact, Fiction and their Impact on Your beer"  He spoke with Steve Gonzalez, senior manager of Small Batch Brewing & Innovation at Stone Brewing Company., *"IBUs are really interesting, but for the most part, we try not to emphasize them too much in anything consumer-facing,” said Gonzalez. “It’s not really relevant to your enjoyment of the product, and we’re constantly hearing about IBUs across the industry being used an important stat when describing beer. Stone uses IBUs as an important quality control too, like most breweries, and while the consumer certainly wants to see it, we’re not making new beers to hit a certain IBU threshold.”*
+
+So, not being an important statistic (a subjective designation by me), throwing out 1005 values (including the other more important information) seems like a bad idea.  In the categorization of missing values, I think this would come under Missing Data but not relevant to the consumer facing business.  Perhaps do a sample average, standard deviation and standard error and find the total mean of the values that are there and put those values into the set so that the mean IBU isn't skewed one way or another.  To delete half of the data set doesn't make sense.  
+
+Now, ABV is an important factor both regulatory-wise, marketing-wise and production quality-wise.  The range of missing data points leads me to believe that given additional time, the 62 ABV values could be obtained.  For example, the Blue Owl Brewery in Austin Texas has 4 beers with missing ABV's in the data set.  However, those 4 beers are shown on their company web site along with their ABV and also IBU.  So, for now, I'll impute those values of the initial data set but will revert to gathered data points/values in the final presentation.  For IBU, I'll need to determine how to impute data values for null values given the neighbors.  The following chunk will impute the mean of the data set members that are present thus not skewing the statistics horribly.  As mentioned above, the IBU doesn't appear that valuable to the consumer.  Perhaps it might be valuable to the CEO and CFO of Budweiser?  Perhaps we can run both cases and evaluate the results.  Contemplating further, I'm going to impute the values of IBU from the means of the present IBU values.  
+
+```{r}
+Beer_Brew$ABV[is.na(Beer_Brew$ABV)] <- mean(Beer_Brew$ABV, na.rm=TRUE)
+summary(Beer_Brew)
+Beer_Brew$IBU[is.na(Beer_Brew$IBU)] <- mean(Beer_Brew$IBU, na.rm = TRUE)
+summary(Beer_Brew)
+```
+
+***Question - 4 Compute the median alcohol content and international bitterness unit for each state. Plot a bar chart to compare.***
+
+This seems like a good use of the group_by function and then calculate the median ABV for each group member.  
+
+```{r}
+#Compute the median ABV by state using group_by
+ABV_state <- Beer_Brew %>% group_by(State) %>% summarize(Median_ABV = median(ABV)) 
+head(ABV_state)
+
+#Compute the median IBU by state using group_by
+IBU_state <- Beer_Brew %>% group_by(State) %>% summarize(Median_IBU = median(IBU)) 
+head(IBU_state)
+
+ABV_IBU <- merge(ABV_state, IBU_state, by = "State")
+head(ABV_IBU)
+View(ABV_IBU)
+#Below is a bar chart of ABV and separately IBU arranged from highest to lowest.  
+library(patchwork)
+plot1 <- ggplot(data = ABV_IBU, aes(x = reorder(State, -Median_ABV), y = Median_ABV)) + geom_bar(stat = "identity", fill = "blue") + labs(x = "State", y = "ABV") + ggtitle("Median Alcohol by Volume by State")  
+plot2 <- ggplot(data = ABV_IBU, aes(x = reorder(State, -Median_IBU), y = Median_IBU)) + geom_bar(stat = "identity", fill = "red") + labs(x = "State", y = "IBU") + ggtitle("Median IBU by State")
+plot1 / plot2
+
+a <- Beer_Brew %>% filter(ABV == max(ABV)) 
+print(a)
+
+b <- Beer_Brew %>% filter(IBU == max(IBU)) 
+print(b)
+
+```
+***Question 5 - Which state has the maximum alcoholic (ABV) beer? Which state has the most bitter (IBU) beer?***
+
+From the Plots generated in the previous step, we can see:
+Maximum ABV - DC <insert political joke here>
+Maximum IBU - West Virginia
+
+***Question 6.	Comment on the summary statistics and distribution of the ABV variable.***
+
+```{r}
+
+Beer_Brew <- data.frame(Beer_Brew)
+summary(Beer_Brew$ABV)
+z <- mean(Beer_Brew$ABV)
+z
+ggplot(ABV_IBU, aes(x = State, y = mean(ABV)) + geom_point())
+hist(ABV_IBU$Median_ABV, xlab = "Average Alcohol by Volume", ylab = "Frequency", main = "Summary statistics for Alcohol by Volume across all 50 States") 
+
+t.test(ABV_IBU$Median_ABV, conf.level = .95)
+```
+
+From the histogram, we can see that the data is left skewed.  Mean is 5.564% alcohol whereas the Median is 5.625% alcohol by volume.  Min and Max means are 4.0%/6.25%.  Inner Quartile numbers are 5.5% and 5.825%.  A relatively wide range of values.  DC - Max, Utah - Min.  A heat map might shed some interesting light on the distribution by area.  The heat map was instructive, but I didn't find any startling findings other than western/southwestern states seemed to have higher alcohol content by average.  The upper midwest was similar. 
+
+From the t.test we can see that the p-value is incredibly small rejecting the null hypothesis that the mean = zero.  The 95% confidence interval is (0.05486303, 0.05716469) with a mean of means of 0.05601386.   
+
+```{r}
+head(ABV_IBU)
+#ABV_IBU$State <- tolower(ABV_IBU$State)
+ABV_IBU$State
+library(ggplot2)
+library(maps)
+#Acu = read.csv(file.choose(),header = TRUE) # read in company data
+lookup = data.frame(abb = state.abb, State = state.name) #makes a data frame with State name and abbreviation.
+head(lookup)
+#lookup$abb <- sort(lookup$abb)
+head(lookup)
+head(ABV_IBU)
+ABV_IBU <- ABV_IBU[-4]
+head(ABV_IBU)
+names(ABV_IBU)[names(ABV_IBU) == "State"] <- "abb"
+head(ABV_IBU)
+summary(lookup)
+summary(ABV_IBU)
+ABV_IBU
+lookup
+#Data set lookup only has 50 states and does not include DC as ABV_IBU does.  So, we must add that and arrange it in the correct order.  
+lookup[nrow(lookup) +1,] = c("DC", "DistofColum")
+#lookup
+lookup <- arrange(lookup, abb, .by_group = FALSE)
+#lookup
+
+ABV_IBU_new = cbind(ABV_IBU,lookup)# make one dataset with state names and abb
+head(ABV_IBU_new)
+ABV_IBU_new <- ABV_IBU_new[-1]
+head(ABV_IBU_new)
+names(ABV_IBU)[names(ABV_IBU) == "abb.1" ] <- "State"
+head(ABV_IBU)
+
+ABV_IBU_new$State <- tolower(ABV_IBU_new$State)
+head(ABV_IBU_new)
+names(ABV_IBU_new)[names(ABV_IBU_new) == "State"] <- "region"
+View(ABV_IBU_new)
+
+#Bring in the states data set that contains lat/lon for constructing the map of the US. 
+states <- map_data("state")
+head(states)
+map.df <- inner_join(states,ABV_IBU_new, match = all)
+map.df
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+geom_polygon(aes(fill=Median_ABV))+
+geom_path()+
+scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+ggtitle("Mean Alcohol By Volume by State")
+coord_map()
+```
+```{r}
+#  Code from Week 5 lecture - heat map on US map. Most of the code in this chunk is data wrangling to get it all in consistent format to join the states data set with our ABV_IBU data set.  
+library(ggplot2)
+library(maps)
+library(dplyr)
+#lookup = data.frame(abb = state.abb, State = state.name) #makes a data frame with State name and abbreviation.
+#head(lookup)
+head(lookup)
+head(ABV_IBU)
+ABV_IBU <- ABV_IBU[-4]
+head(ABV_IBU)
+names(ABV_IBU)[names(ABV_IBU) == "State"] <- "abb"
+head(ABV_IBU)
+
+# make one dataset with state names and abb
+ABV_IBU_new = cbind(ABV_IBU,lookup)
+head(ABV_IBU_new)
+ABV_IBU_new <- ABV_IBU_new[-1]
+head(ABV_IBU_new)
+names(ABV_IBU)[names(ABV_IBU) == "abb.1" ] <- "State"
+head(ABV_IBU)
+
+ABV_IBU_new$State <- tolower(ABV_IBU_new$State)
+head(ABV_IBU_new)
+names(ABV_IBU_new)[names(ABV_IBU_new) == "State"] <- "region"
+View(ABV_IBU_new)
+
+#Final steps in creating the heat map
+states <- map_data("state")
+head(states)
+map.df <- inner_join(states,ABV_IBU_new, match = all)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+geom_polygon(aes(fill=Median_ABV))+
+geom_path()+
+scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+ggtitle("Mean Alcohol By Volume by State")
+coord_map()
+```
+
+***Question 7.	Is there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot.  Make your best judgment of a relationship and EXPLAIN your answer.***
+
+Variance, Covariance, linear regression, and correlation all come to mind to show a relationship.  Let's start with the scatter plot.  The scatter plot of Median ABV against Median IBU for each state with a linear regression line plot through the data shows a relatively strong positive relationship between ABV and IBU.  
+
+```{r}
+library(tidyverse)
+ggplot(ABV_IBU, aes(x = Median_ABV, y = Median_IBU)) +
+  theme_classic() +
+  geom_point(
+    mapping = aes(Median_ABV, Median_IBU, 
+    color = "state")) + xlab("Median ABV") + ylab("Median IBU") +
+    ggtitle("Median ABV versus Median IBU for each state with a blue linear regression line plotted for all of the data points") +
+    geom_smooth(method="lm")
+```
+***Question 8.	Budweiser would also like to investigate the difference with respect to IBU and ABV between IPAs (India Pale Ales) and other types of Ale (any beer with “Ale” in its name other than IPA).  You decide to use KNN classification to investigate this relationship.  Provide statistical evidence one way or the other. You can of course assume your audience is comfortable with percentages … KNN is very easy to understand conceptually. In addition, while you have decided to use KNN to investigate this relationship (KNN is required) you may also feel free to supplement your response to this question with any other methods or techniques you have learned.  Creativity and alternative solutions are always encouraged.***
+
+First, let's extract the character pattern, "India Pale Ale" or "IPA".  Looking over the data set, there are many in between (gray area) names like "American Pale Ale."  I'd like to create a data.frame that contains just these patterns.  There is also the Name.x of the beer and then another column called "Style".  I think it's worth searching both of these columns.  Then I can search for "Ale" and !="India Pale Ale" or !="IPA".  That's my plan anyway.  The data.frame created above "Beer_Brew" contains all of the data joined by the key Brewery_ID.  This seems like a good place to start.  
+
+```{r}
+#head(Beer_Brew)
+#library(stringr)
+#IPA_df <- Beer_Brew %>% str_locate_all(c("India Pale Ale", "IPA"), "t.m")
+#head(IPA_df)
+```
+
+
