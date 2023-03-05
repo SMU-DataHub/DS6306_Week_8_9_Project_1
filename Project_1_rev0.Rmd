@@ -6,10 +6,7 @@ output:
   slidy_presentation: 
     highlight: espresso
     fig_height: 25
-    fig_retina: 1
     fig_width: 17
-  ioslides_presentation:
-    highlight: espresso
 editor_options:
   chunk_output_type: console
 ---
@@ -17,7 +14,7 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 knitr::opts_chunk$set(dev = c('pdf', 'png'), 
-        fig.align = 'center', fig.height = 50, fig.width = 25, out.width = 25, out.height = 50,
+        fig.align = 'center', fig.height = 50, fig.width = 25, 
         pdf.options(encoding = "ISOLatin9.enc")) 
 
 library(class)
